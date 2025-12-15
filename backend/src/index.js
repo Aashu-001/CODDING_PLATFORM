@@ -14,7 +14,10 @@ const cors = require('cors')
 // console.log("Hello")
 
 app.use(cors({
-  origin: true,        // allow all origins TEMPORARILY
+  origin: [
+    "http://localhost:5173",
+    "https://14-dev.vercel.app/"
+  ],        // allow all origins TEMPORARILY
   credentials: true
 }));
 
