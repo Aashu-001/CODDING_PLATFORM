@@ -27,7 +27,7 @@ app.use('/submission',submitRouter);
 app.use('/ai',aiRouter);
 app.use("/video",videoRouter);
 
-
+const port = process.env.PORT || 4000;
 const InitalizeConnection = async ()=>{
     try{
 
@@ -35,7 +35,7 @@ const InitalizeConnection = async ()=>{
         console.log("DB Connected");
         
         app.listen(process.env.PORT, ()=>{
-            console.log("Server listening at port number: "+ process.env.PORT ||3000 );
+            console.log(`Server listening at port number: ${port}` );
         })
 
     }
