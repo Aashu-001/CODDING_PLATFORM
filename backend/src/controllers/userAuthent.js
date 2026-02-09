@@ -12,7 +12,7 @@ const register = async (req,res)=>{
         // validate the data;
 
       validate(req.body); 
-      const {firstName, emailId, password}  = req.body;
+      const { emailId, password}  = req.body;
 
       req.body.password = await bcrypt.hash(password, 10);
       req.body.role = 'user'
