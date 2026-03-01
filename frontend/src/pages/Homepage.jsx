@@ -12,7 +12,7 @@ function Homepage() {
   const [filters, setFilters] = useState({
     difficulty: 'all',
     tag: 'all',
-    status: 'all' 
+    status: 'all'
   });
 
   useEffect(() => {
@@ -46,8 +46,8 @@ function Homepage() {
   const filteredProblems = problems.filter(problem => {
     const difficultyMatch = filters.difficulty === 'all' || problem.difficulty === filters.difficulty;
     const tagMatch = filters.tag === 'all' || problem.tags === filters.tag;
-    const statusMatch = filters.status === 'all' || 
-                      solvedProblems.some(sp => sp._id === problem._id);
+    const statusMatch = filters.status === 'all' ||
+      solvedProblems.some(sp => sp._id === problem._id);
     return difficultyMatch && tagMatch && statusMatch;
   });
 
@@ -56,16 +56,19 @@ function Homepage() {
       {/* Navigation Bar */}
       <nav className="navbar bg-base-100 shadow-lg px-4">
         <div className="flex-1">
-          <NavLink to="/" className="btn btn-ghost text-xl">LeetCode</NavLink>
+          <NavLink to="/problems" className="btn btn-ghost text-xl font-bold">LeetCode</NavLink>
         </div>
         <div className="flex-none gap-4">
           <div className="dropdown dropdown-end">
-            <div tabIndex={0} className="btn btn-ghost">
-              {user?.firstName}
+            <div tabIndex={0} className="btn btn-ghost p-0">
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg,oklch(var(--p)),oklch(var(--s)))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16, color: 'oklch(var(--pc))', flexShrink: 0 }}>
+                {user?.firstName?.[0]}
+              </div>
             </div>
             <ul className="mt-3 p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
+              <li><NavLink to="/">My Profile</NavLink></li>
               <li><button onClick={handleLogout}>Logout</button></li>
-              {user.role=='admin'&&<li><NavLink to="/admin">Admin</NavLink></li>}
+              {user.role == 'admin' && <li><NavLink to="/admin">Admin</NavLink></li>}
             </ul>
           </div>
         </div>
@@ -76,19 +79,19 @@ function Homepage() {
         {/* Filters */}
         <div className="flex flex-wrap gap-4 mb-6">
           {/* New Status Filter */}
-          <select 
+          <select
             className="select select-bordered"
             value={filters.status}
-            onChange={(e) => setFilters({...filters, status: e.target.value})}
+            onChange={(e) => setFilters({ ...filters, status: e.target.value })}
           >
             <option value="all">All Problems</option>
             <option value="solved">Solved Problems</option>
           </select>
 
-          <select 
+          <select
             className="select select-bordered"
             value={filters.difficulty}
-            onChange={(e) => setFilters({...filters, difficulty: e.target.value})}
+            onChange={(e) => setFilters({ ...filters, difficulty: e.target.value })}
           >
             <option value="all">All Difficulties</option>
             <option value="easy">Easy</option>
@@ -96,10 +99,10 @@ function Homepage() {
             <option value="hard">Hard</option>
           </select>
 
-          <select 
+          <select
             className="select select-bordered"
             value={filters.tag}
-            onChange={(e) => setFilters({...filters, tag: e.target.value})}
+            onChange={(e) => setFilters({ ...filters, tag: e.target.value })}
           >
             <option value="all">All Tags</option>
             <option value="array">Array</option>
@@ -129,7 +132,7 @@ function Homepage() {
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex gap-2">
                   <div className={`badge ${getDifficultyBadgeColor(problem.difficulty)}`}>
                     {problem.difficulty}
