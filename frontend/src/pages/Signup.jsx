@@ -38,7 +38,7 @@ function Signup() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-base-200"> {/* Added a light bg for contrast */}
       <div className="card w-96 bg-base-100 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title justify-center text-3xl mb-6">Leetcode</h2> {/* Added mb-6 for spacing */}
+          <h2 className="card-title justify-center text-3xl mb-6">CodeJudge</h2> {/* Added mb-6 for spacing */}
           <form onSubmit={handleSubmit(onSubmit)}>
             {/* First Name Field */}
             <div className="form-control">
@@ -48,7 +48,7 @@ function Signup() {
               <input
                 type="text"
                 placeholder="John"
-                className={`input input-bordered w-full ${errors.firstName ? 'input-error' : ''}`} 
+                className={`input input-bordered w-full ${errors.firstName ? 'input-error' : ''}`}
                 {...register('firstName')}
               />
               {errors.firstName && (
@@ -109,7 +109,7 @@ function Signup() {
             </div>
 
             {/* Submit Button */}
-            <div className="form-control mt-8 flex justify-center"> 
+            <div className="form-control mt-8 flex justify-center">
               <button
                 type="submit"
                 className={`btn btn-primary ${loading ? 'loading' : ''}`}
