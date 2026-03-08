@@ -2,14 +2,14 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate, NavLink } from 'react-router'; 
+import { useNavigate, NavLink } from 'react-router';
 import { loginUser } from "../authSlice";
 import { useEffect, useState } from 'react';
 
 
 const loginSchema = z.object({
   emailId: z.string().email("Invalid Email"),
-  password: z.string().min(8, "Password is too weak") 
+  password: z.string().min(8, "Password is too weak")
 });
 
 function Login() {
@@ -37,9 +37,9 @@ function Login() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-base-200"> {/* Added bg for contrast */}
       <div className="card w-96 bg-base-100 shadow-xl">
         <div className="card-body">
-          <h2 className="card-title justify-center text-3xl mb-6">Leetcode</h2> {/* Added mb-6 */}
+          <h2 className="card-title justify-center text-3xl mb-6">CodeJudge</h2> {/* Added mb-6 */}
 
-          
+
           <form onSubmit={handleSubmit(onSubmit)}>
             <div className="form-control"> {/* Removed mt-4 from first form-control for tighter spacing to title or global error */}
               <label className="label"> {/* Removed mb-1, default spacing should be fine */}
@@ -48,7 +48,7 @@ function Login() {
               <input
                 type="email"
                 placeholder="john@example.com"
-                className={`input input-bordered w-full ${errors.emailId ? 'input-error' : ''}`} 
+                className={`input input-bordered w-full ${errors.emailId ? 'input-error' : ''}`}
                 {...register('emailId')}
               />
               {errors.emailId && (
