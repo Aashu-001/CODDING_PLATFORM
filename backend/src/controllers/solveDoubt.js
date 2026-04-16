@@ -1,103 +1,215 @@
 const { GoogleGenAI } = require("@google/genai");
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-const solveDoubt = async(req , res)=>{
+const getRetryDelaySecs = (err) => {
+    try {
+        const parsed = JSON.parse(err?.message || '{}');
+        const details = parsed?.error?.details || [];
+        for (const detail of details) {
+            if (detail?.retryDelay) return parseInt(detail.retryDelay) + 1;
+        }
+    } catch (_) { }
+    return 15;
+};
 
+const isRateLimitError = (err) => {
+    if (err?.status === 429) return true;
+    try {
+        const parsed = JSON.parse(err?.message || '{}');
+        return parsed?.error?.code === 429;
+    } catch (_) { }
+    return false;
+};
 
-    try{
+// Detects billing/plan quota exhaustion (not a temporary rate limit)
+const isQuotaExhausted = (err) => {
+    const msg = err?.message || '';
+    return msg.includes('exceeded your current quota') ||
+        msg.includes('billing') ||
+        msg.includes('RESOURCE_EXHAUSTED');
+};
 
-        const {messages,title,description,testCases,startCode} = req.body;
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_KEY });
-       
-        async function main() {
-        const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: messages,
-        config: {
-        systemInstruction: `
-You are an expert Data Structures and Algorithms (DSA) tutor specializing in helping users solve coding problems. Your role is strictly limited to DSA-related assistance only.
+const buildSystemPrompt = (title, description, testCases, startCode) => `
+You are a strict Socratic DSA tutor on a competitive coding platform. Your SOLE job is to help the user THINK and UNDERSTAND — NOT to solve problems for them.
 
 ## CURRENT PROBLEM CONTEXT:
-[PROBLEM_TITLE]: ${title}
-[PROBLEM_DESCRIPTION]: ${description}
-[EXAMPLES]: ${testCases}
-[startCode]: ${startCode}
+Title: ${title}
+Description: ${description}
+Test Cases: ${JSON.stringify(testCases)}
+Starter Code: ${startCode}
 
+## YOUR TEACHING PHILOSOPHY (MUST FOLLOW STRICTLY):
 
-## YOUR CAPABILITIES:
-1. **Hint Provider**: Give step-by-step hints without revealing the complete solution
-2. **Code Reviewer**: Debug and fix code submissions with explanations
-3. **Solution Guide**: Provide optimal solutions with detailed explanations
-4. **Complexity Analyzer**: Explain time and space complexity trade-offs
-5. **Approach Suggester**: Recommend different algorithmic approaches (brute force, optimized, etc.)
-6. **Test Case Helper**: Help create additional test cases for edge case validation
+### ✅ ALWAYS DO:
+- Respond with guiding QUESTIONS that push the user to think (e.g. "What data structure lets you look up values in O(1)?")
+- Break the problem into sub-questions one at a time
+- Acknowledge what the user already understands before nudging further
+- Ask the user to explain their current approach before giving any hint
+- If the user is stuck, give the SMALLEST possible conceptual nudge, then ask a follow-up question
+- Explain WHY a certain approach works, ask the user if they see the pattern
+- Discuss time/space complexity by asking "What do you think the complexity of your approach is?"
 
-## INTERACTION GUIDELINES:
+### ❌ NEVER DO:
+- Never write complete working code or full solutions — not even in comments
+- Never give the full algorithm step by step (e.g. no "Step 1: do X, Step 2: do Y..." that solves everything)
+- Never paste code that directly answers the problem, even partial implementations that are more than 3 lines
+- Never say "here is the solution" or "the answer is"
+- Never discuss topics unrelated to the current problem — politely redirect
 
-### When user asks for HINTS:
-- Break down the problem into smaller sub-problems
-- Ask guiding questions to help them think through the solution
-- Provide algorithmic intuition without giving away the complete approach
-- Suggest relevant data structures or techniques to consider
+### 💬 RESPONSE FORMAT:
+- Keep responses SHORT (2–5 sentences max) and end with a guiding question
+- Use plain language, not jargon-heavy explanations
+- If the user explicitly asks for the full solution, say: "I can't give you the full solution — that's cheating yourself! Instead, let me ask you this: [follow-up question]"
+- Respond in the same language the user writes in
+`;
 
-### When user submits CODE for review:
-- Identify bugs and logic errors with clear explanations
-- Suggest improvements for readability and efficiency
-- Explain why certain approaches work or don't work
-- Provide corrected code with line-by-line explanations when needed
+// ─── Provider: Gemini ────────────────────────────────────────────────────────
 
-### When user asks for OPTIMAL SOLUTION:
-- Start with a brief approach explanation
-- Provide clean, well-commented code
-- Explain the algorithm step-by-step
-- Include time and space complexity analysis
-- Mention alternative approaches if applicable
+const callGemini = async (messages, systemInstruction) => {
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_KEY });
 
-### When user asks for DIFFERENT APPROACHES:
-- List multiple solution strategies (if applicable)
-- Compare trade-offs between approaches
-- Explain when to use each approach
-- Provide complexity analysis for each
+    const history = messages.slice(0, -1).map((msg) => ({
+        role: msg.role,
+        parts: msg.parts,
+    }));
+    const userPrompt = messages[messages.length - 1]?.parts?.[0]?.text || "";
 
-## RESPONSE FORMAT:
-- Use clear, concise explanations
-- Format code with proper syntax highlighting
-- Use examples to illustrate concepts
-- Break complex explanations into digestible parts
-- Always relate back to the current problem context
-- Always response in the Language in which user is comfortable or given the context
-
-## STRICT LIMITATIONS:
-- ONLY discuss topics related to the current DSA problem
-- DO NOT help with non-DSA topics (web development, databases, etc.)
-- DO NOT provide solutions to different problems
-- If asked about unrelated topics, politely redirect: "I can only help with the current DSA problem. What specific aspect of this problem would you like assistance with?"
-
-## TEACHING PHILOSOPHY:
-- Encourage understanding over memorization
-- Guide users to discover solutions rather than just providing answers
-- Explain the "why" behind algorithmic choices
-- Help build problem-solving intuition
-- Promote best coding practices
-
-Remember: Your goal is to help users learn and understand DSA concepts through the lens of the current problem, not just to provide quick answers.
-`},
+    const chat = ai.chats.create({
+        model: "gemini-2.0-flash",
+        history,
+        config: { systemInstruction },
     });
-     
-    res.status(201).json({
-        message:response.text
+
+    const response = await chat.sendMessage({ message: userPrompt });
+    return response.text;
+};
+
+// ─── Provider: Groq (OpenAI-compatible REST) ─────────────────────────────────
+
+const callGroq = async (messages, systemInstruction) => {
+    const openAiMessages = [
+        { role: "system", content: systemInstruction },
+        ...messages.map((m) => ({
+            role: m.role === "model" ? "assistant" : "user",
+            content: m.parts[0].text,
+        })),
+    ];
+
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+            model: "llama-3.3-70b-versatile",
+            messages: openAiMessages,
+            max_tokens: 1024,
+        }),
     });
-    console.log(response.text);
+
+    if (!res.ok) {
+        const errBody = await res.text();
+        const error = new Error(errBody);
+        if (res.status === 429) error.status = 429;
+        throw error;
     }
 
-    main();
-      
+    const data = await res.json();
+    return data.choices[0].message.content;
+};
+
+// ─── Provider: OpenRouter (OpenAI-compatible REST) ───────────────────────────
+
+const callOpenRouter = async (messages, systemInstruction) => {
+    const openAiMessages = [
+        { role: "system", content: systemInstruction },
+        ...messages.map((m) => ({
+            role: m.role === "model" ? "assistant" : "user",
+            content: m.parts[0].text,
+        })),
+    ];
+
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "HTTP-Referer": "https://codejudge.app",
+            "X-Title": "CodeJudge AI Tutor",
+        },
+        body: JSON.stringify({
+            model: "deepseek/deepseek-r1:free",
+            messages: openAiMessages,
+            max_tokens: 1500,
+        }),
+    });
+
+    if (!res.ok) {
+        const errBody = await res.text();
+        const error = new Error(errBody);
+        if (res.status === 429) error.status = 429;
+        throw error;
     }
-    catch(err){
+
+    const data = await res.json();
+    return data.choices[0].message.content;
+};
+
+// ─── Provider map ────────────────────────────────────────────────────────────
+
+const PROVIDERS = {
+    gemini: callGemini,
+    groq: callGroq,
+    openrouter: callOpenRouter,
+};
+
+// ─── Main controller ─────────────────────────────────────────────────────────
+
+const solveDoubt = async (req, res) => {
+    try {
+        const { messages, title, description, testCases, startCode, provider = "openrouter" } = req.body;
+
+        if (!messages || !Array.isArray(messages) || messages.length === 0) {
+            return res.status(400).json({ message: "messages array is required" });
+        }
+
+        const callProvider = PROVIDERS[provider];
+        if (!callProvider) {
+            return res.status(400).json({ message: `Unknown provider: ${provider}` });
+        }
+
+        const systemInstruction = buildSystemPrompt(title, description, testCases, startCode);
+
+        console.log(`[AI] Using provider: ${provider}`);
+        const responseText = await callProvider(messages, systemInstruction);
+
+        console.log(`[AI] OK (${provider}):`, responseText.slice(0, 80));
+        res.status(200).json({ message: responseText });
+
+    } catch (err) {
+        console.error("[AI] Error:", err?.message?.slice(0, 120) || err);
+
+        if (isRateLimitError(err)) {
+            // Quota exhausted (billing limit) — do NOT send retryAfter, it won't recover automatically
+            if (isQuotaExhausted(err)) {
+                console.warn(`[AI] Quota exhausted for provider: ${req.body?.provider}. No retry.`);
+                return res.status(429).json({
+                    message: `⚠️ The ${req.body?.provider || 'AI'} quota is exhausted. Please switch to a different model (e.g. Groq).`,
+                    quotaExhausted: true,   // flag for frontend
+                });
+            }
+
+            const retryAfter = getRetryDelaySecs(err);
+            console.log(`Rate limited. Telling client to retry in ${retryAfter}s`);
+            return res.status(429).json({ message: "Rate limited", retryAfter });
+        }
+
         res.status(500).json({
-            message: "Internal server error"
+            message: "AI service error: " + (err?.message?.slice(0, 100) || "Unknown error"),
         });
     }
-}
+};
 
 module.exports = solveDoubt;
