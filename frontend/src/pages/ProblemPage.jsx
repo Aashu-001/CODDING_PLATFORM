@@ -23,6 +23,7 @@ const ProblemPage = () => {
   const [submitResult, setSubmitResult] = useState(null);
   const [activeLeftTab, setActiveLeftTab] = useState('description');
   const [activeRightTab, setActiveRightTab] = useState('code');
+  const [isSolved, setIsSolved] = useState(false);
   const editorRef = useRef(null);
   let {problemId}  = useParams();
 
@@ -41,8 +42,17 @@ const ProblemPage = () => {
         const initialCode = response.data.startCode.find(sc => sc.language === langMap[selectedLanguage]).initialCode;
 
         setProblem(response.data);
-        
         setCode(initialCode);
+
+        // Check if user already has an accepted submission for this problem
+        try {
+          const subRes = await axiosClient.get(`/problem/submittedProblem/${problemId}`);
+          const raw = subRes.data;
+          const list = Array.isArray(raw) ? raw : Array.isArray(raw?.submissions) ? raw.submissions : [];
+          const hasAccepted = list.some(s => s.status?.toLowerCase() === 'accepted');
+          if (hasAccepted) setIsSolved(true);
+        } catch (_) { /* ignore – submission history is optional */ }
+
         setLoading(false);
         
       } catch (error) {
@@ -110,6 +120,7 @@ const ProblemPage = () => {
       });
 
        setSubmitResult(response.data);
+       if (response.data?.accepted) setIsSolved(true);
        setLoading(false);
        setActiveRightTab('result');
       
@@ -238,20 +249,87 @@ const ProblemPage = () => {
               {activeLeftTab === 'solutions' && (
                 <div>
                   <h2 className="text-xl font-bold mb-4">Solutions</h2>
-                  <div className="space-y-6">
-                    {problem.referenceSolution?.map((solution, index) => (
-                      <div key={index} className="border border-base-300 rounded-lg">
-                        <div className="bg-base-200 px-4 py-2 rounded-t-lg">
-                          <h3 className="font-semibold">{problem?.title} - {solution?.language}</h3>
-                        </div>
-                        <div className="p-4">
-                          <pre className="bg-base-300 p-4 rounded text-sm overflow-x-auto">
-                            <code>{solution?.completeCode}</code>
-                          </pre>
-                        </div>
+                  {!isSolved ? (
+                    /* ── Locked overlay ── */
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center',
+                      justifyContent: 'center', padding: '48px 24px', textAlign: 'center',
+                      background: 'linear-gradient(135deg, rgba(139,92,246,0.08) 0%, rgba(59,130,246,0.06) 100%)',
+                      border: '1px solid rgba(139,92,246,0.2)',
+                      borderRadius: '16px',
+                      gap: '16px',
+                    }}>
+                      <div style={{
+                        width: '72px', height: '72px', borderRadius: '50%',
+                        background: 'rgba(139,92,246,0.15)',
+                        border: '2px solid rgba(139,92,246,0.35)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '2rem',
+                        boxShadow: '0 0 28px rgba(139,92,246,0.25)',
+                        animation: 'solutionLockPulse 2.4s ease-in-out infinite',
+                      }}>
+                        🔒
                       </div>
-                    )) || <p className="text-gray-500">Solutions will be available after you solve the problem.</p>}
-                  </div>
+                      <div>
+                        <p style={{
+                          fontSize: '1.1rem', fontWeight: 700,
+                          background: 'linear-gradient(135deg, #e2e8f0, #a78bfa)',
+                          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                          marginBottom: '8px',
+                        }}>
+                          Solutions Locked
+                        </p>
+                        <p style={{ color: 'rgba(148,163,184,0.65)', fontSize: '0.875rem', maxWidth: '320px', lineHeight: 1.6 }}>
+                          Solve this problem first to unlock the reference solutions. Give it your best shot! 💪
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setActiveLeftTab('description')}
+                        style={{
+                          marginTop: '8px', padding: '10px 28px', borderRadius: '10px',
+                          fontWeight: 700, fontSize: '0.875rem', cursor: 'pointer',
+                          background: 'rgba(139,92,246,0.18)',
+                          border: '1px solid rgba(139,92,246,0.4)',
+                          color: '#a78bfa',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.32)'; e.currentTarget.style.boxShadow = '0 0 16px rgba(139,92,246,0.25)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.18)'; e.currentTarget.style.boxShadow = 'none'; }}
+                      >
+                        Go to Problem
+                      </button>
+                      <style>{`
+                        @keyframes solutionLockPulse {
+                          0%, 100% { box-shadow: 0 0 28px rgba(139,92,246,0.25); transform: scale(1); }
+                          50% { box-shadow: 0 0 44px rgba(139,92,246,0.5); transform: scale(1.06); }
+                        }
+                      `}</style>
+                    </div>
+                  ) : (
+                    /* ── Unlocked solutions ── */
+                    <div className="space-y-6">
+                      <div style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '10px 16px', borderRadius: '10px',
+                        background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)',
+                        color: '#4ade80', fontSize: '0.875rem', fontWeight: 600, marginBottom: '8px',
+                      }}>
+                        🔓 &nbsp;Unlocked — Great job solving this problem!
+                      </div>
+                      {problem.referenceSolution?.map((solution, index) => (
+                        <div key={index} className="border border-base-300 rounded-lg">
+                          <div className="bg-base-200 px-4 py-2 rounded-t-lg">
+                            <h3 className="font-semibold">{problem?.title} - {solution?.language}</h3>
+                          </div>
+                          <div className="p-4">
+                            <pre className="bg-base-300 p-4 rounded text-sm overflow-x-auto">
+                              <code>{solution?.completeCode}</code>
+                            </pre>
+                          </div>
+                        </div>
+                      )) || <p className="text-gray-500">No reference solutions available.</p>}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -268,7 +346,7 @@ const ProblemPage = () => {
                 <div className="prose max-w-none">
                   <h2 className="text-xl font-bold mb-4">CHAT with AI</h2>
                   <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                    <ChatAi problem={problem}></ChatAi>
+                    <ChatAi problem={problem} editorCode={code} language={selectedLanguage}></ChatAi>
                   </div>
                 </div>
               )}
