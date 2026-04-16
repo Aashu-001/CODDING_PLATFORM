@@ -31,7 +31,8 @@ const register = async (req, res) => {
             httpOnly: true,
             secure: true,
             sameSite: "none",
-            maxAge: 60 * 60 * 1000
+            maxAge: 60 * 60 * 1000,
+            sameSite: "lax"  
         });
         res.status(201).json({
             user: reply,
@@ -74,7 +75,8 @@ const login = async (req, res) => {
             httpOnly: true,
             secure: true,        // REQUIRED (HTTPS)
             sameSite: "none",    // REQUIRED (Vercel → Render)
-            maxAge: 60 * 60 * 1000
+            maxAge: 60 * 60 * 1000,
+            sameSite: "lax"  
         });
         res.status(201).json({
             user: reply,
