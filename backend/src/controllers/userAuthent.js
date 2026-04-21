@@ -57,6 +57,9 @@ const login = async (req, res) => {
 
         const user = await User.findOne({ emailId });
 
+        if (!user)
+            throw new Error("Invalid Credentials");
+
         const match = await bcrypt.compare(password, user.password);
 
         if (!match)
@@ -74,7 +77,7 @@ const login = async (req, res) => {
             httpOnly: true,
             secure: true,        // REQUIRED (HTTPS)
             sameSite: "none",    // REQUIRED (Vercel → Render)
-            maxAge: 60 * 60 * 1000 
+            maxAge: 60 * 60 * 1000
         });
         res.status(201).json({
             user: reply,
